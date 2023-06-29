@@ -93,6 +93,8 @@ def project(x, projection_matrix):
     """
     return x@torch.transpose(projection_matrix, 0, 1)
 
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__)) #in case app.py is run from a different working dir
 
 def get_clip_feature(model, processor, input, is_image=False):
     feature_type = ['before','after_reproject'] # text feature, image feature 
@@ -107,7 +109,7 @@ def get_clip_feature(model, processor, input, is_image=False):
         if feature_type[1] == 'after_renorm':
             feature = feature*28.7
         if feature_type[1] == 'after_reproject':
-            feature = project( feature, torch.load('gligen/projection_matrix').to(device).T ).squeeze(0)
+            feature = project( feature, torch.load(os.path.join(current_dir, 'projection_matrix')).to(device).T ).squeeze(0)
             feature = ( feature / feature.norm() )  * 28.7 
             feature = feature.unsqueeze(0)
     else:

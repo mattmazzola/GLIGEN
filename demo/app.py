@@ -147,7 +147,8 @@ class Blocks(gr.Blocks):
 '''
 inference model
 '''
-
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__)) #in case app.py is run from a different working dir
 @torch.no_grad()
 def inference(task, language_instruction, grounding_instruction, inpainting_boxes_nodrop, image,
               alpha_sample, guidance_scale, batch_size,
@@ -159,7 +160,7 @@ def inference(task, language_instruction, grounding_instruction, inpainting_boxe
         phrase_list.append(k)
         location_list.append(v)
 
-    placeholder_image = Image.open('images/teddy.jpg').convert("RGB")    
+    placeholder_image = Image.open(os.path.join(current_dir, 'images/teddy.jpg')).convert("RGB")    
     image_list = [placeholder_image] * len(phrase_list) # placeholder input for visual prompt, which is disabled
 
     batch_size = int(batch_size)
@@ -517,250 +518,250 @@ function () {
     mirrors_div.innerHTML = mirror_html;
 }
 """
+if __name__ == "__main__":
+    with Blocks(
+        css=css,
+        analytics_enabled=False,
+        title="GLIGen demo",
+    ) as main:
+        gr.Markdown('<h1 style="text-align: center;">GLIGen: Open-Set Grounded Text-to-Image Generation</h1>')
+        gr.Markdown("""<h3 style="text-align: center" id="paper-info">
+        [<a href="https://gligen.github.io" target="_blank" style="">Project Page</a>]
+        [<a href="https://arxiv.org/abs/2301.07093" target="_blank" style="">Paper</a>]
+        [<a href="https://github.com/gligen/GLIGEN" target="_blank" style="">GitHub Repo</a>]
+        </h3>""")
+        # gr.HTML("", elem_id="mirrors")
+        gr.Markdown("To ground concepts of interest with desired spatial specification, please (1) &#9000;&#65039; enter the concept names in <em> Grounding Instruction</em>, and (2) &#128433;&#65039; draw their corresponding bounding boxes one by one using <em> Sketch Pad</em> -- the parsed boxes will be displayed automatically.")
+        with gr.Row():
+            with gr.Column(scale=4):
+                sketch_pad_trigger = gr.Number(value=0, visible=False)
+                sketch_pad_resize_trigger = gr.Number(value=0, visible=False)
+                init_white_trigger = gr.Number(value=0, visible=False)
+                image_scale = gr.Number(value=0, elem_id="image_scale", visible=False)
+                new_image_trigger = gr.Number(value=0, visible=False)
 
-with Blocks(
-    css=css,
-    analytics_enabled=False,
-    title="GLIGen demo",
-) as main:
-    gr.Markdown('<h1 style="text-align: center;">GLIGen: Open-Set Grounded Text-to-Image Generation</h1>')
-    gr.Markdown("""<h3 style="text-align: center" id="paper-info">
-    [<a href="https://gligen.github.io" target="_blank" style="">Project Page</a>]
-    [<a href="https://arxiv.org/abs/2301.07093" target="_blank" style="">Paper</a>]
-    [<a href="https://github.com/gligen/GLIGEN" target="_blank" style="">GitHub Repo</a>]
-    </h3>""")
-    # gr.HTML("", elem_id="mirrors")
-    gr.Markdown("To ground concepts of interest with desired spatial specification, please (1) &#9000;&#65039; enter the concept names in <em> Grounding Instruction</em>, and (2) &#128433;&#65039; draw their corresponding bounding boxes one by one using <em> Sketch Pad</em> -- the parsed boxes will be displayed automatically.")
-    with gr.Row():
-        with gr.Column(scale=4):
-            sketch_pad_trigger = gr.Number(value=0, visible=False)
-            sketch_pad_resize_trigger = gr.Number(value=0, visible=False)
-            init_white_trigger = gr.Number(value=0, visible=False)
-            image_scale = gr.Number(value=0, elem_id="image_scale", visible=False)
-            new_image_trigger = gr.Number(value=0, visible=False)
+                task = gr.Radio(
+                    choices=["Grounded Generation", 'Grounded Inpainting'],
+                    type="value",
+                    value="Grounded Generation",
+                    label="Task",
+                )
+                language_instruction = gr.Textbox(
+                    label="Language instruction",
+                )
+                grounding_instruction = gr.Textbox(
+                    label="Grounding instruction (Separated by semicolon)",
+                )
+                with gr.Row():
+                    sketch_pad = ImageMask(label="Sketch Pad", elem_id="img2img_image")
+                    out_imagebox = gr.Image(type="pil", label="Parsed Sketch Pad")
+                with gr.Row():
+                    clear_btn = gr.Button(value='Clear')
+                    gen_btn = gr.Button(value='Generate', elem_id="generate-btn")
+                with gr.Accordion("Advanced Options", open=False):
+                    with gr.Column():
+                        alpha_sample = gr.Slider(minimum=0, maximum=1.0, step=0.1, value=0.3, label="Scheduled Sampling (τ)")
+                        guidance_scale = gr.Slider(minimum=0, maximum=50, step=0.5, value=7.5, label="Guidance Scale")
+                        batch_size = gr.Slider(minimum=1, maximum=4, step=1, value=2, label="Number of Samples")
+                        append_grounding = gr.Checkbox(value=True, label="Append grounding instructions to the caption")
+                        use_actual_mask = gr.Checkbox(value=False, label="Use actual mask for inpainting", visible=False)
+                        with gr.Row():
+                            fix_seed = gr.Checkbox(value=True, label="Fixed seed")
+                            rand_seed = gr.Slider(minimum=0, maximum=1000, step=1, value=0, label="Seed")
+                        with gr.Row():
+                            use_style_cond = gr.Checkbox(value=False, label="Enable Style Condition")
+                            style_cond_image = gr.Image(type="pil", label="Style Condition", visible=False, interactive=True)
+            with gr.Column(scale=4):
+                gr.Markdown("### Generated Images")
+                with gr.Row():
+                    out_gen_1 = gr.Image(type="pil", visible=True, show_label=False)
+                    out_gen_2 = gr.Image(type="pil", visible=True, show_label=False)
+                with gr.Row():
+                    out_gen_3 = gr.Image(type="pil", visible=False, show_label=False)
+                    out_gen_4 = gr.Image(type="pil", visible=False, show_label=False)
 
-            task = gr.Radio(
-                choices=["Grounded Generation", 'Grounded Inpainting'],
-                type="value",
-                value="Grounded Generation",
-                label="Task",
+            state = gr.State({})
+
+            class Controller:
+                def __init__(self):
+                    self.calls = 0
+                    self.tracks = 0
+                    self.resizes = 0
+                    self.scales = 0
+
+                def init_white(self, init_white_trigger):
+                    self.calls += 1
+                    return np.ones((512, 512), dtype='uint8') * 255, 1.0, init_white_trigger+1
+
+                def change_n_samples(self, n_samples):
+                    blank_samples = n_samples % 2 if n_samples > 1 else 0
+                    return [gr.Image.update(visible=True) for _ in range(n_samples + blank_samples)] \
+                        + [gr.Image.update(visible=False) for _ in range(4 - n_samples - blank_samples)]
+
+                def resize_centercrop(self, state):
+                    self.resizes += 1
+                    image = state['original_image'].copy()
+                    inpaint_hw = int(0.9 * min(*image.shape[:2]))
+                    state['inpaint_hw'] = inpaint_hw
+                    image_cc = center_crop(image, inpaint_hw)
+                    # print(f'resize triggered {self.resizes}', image.shape, '->', image_cc.shape)
+                    return image_cc, state
+
+                def resize_masked(self, state):
+                    self.resizes += 1
+                    image = state['original_image'].copy()
+                    inpaint_hw = int(0.9 * min(*image.shape[:2]))
+                    state['inpaint_hw'] = inpaint_hw
+                    image_mask = sized_center_mask(image, inpaint_hw, inpaint_hw)
+                    state['masked_image'] = image_mask.copy()
+                    # print(f'mask triggered {self.resizes}')
+                    return image_mask, state
+                
+                def switch_task_hide_cond(self, task):
+                    cond = False
+                    if task == "Grounded Generation":
+                        cond = True
+
+                    return gr.Checkbox.update(visible=cond, value=False), gr.Image.update(value=None, visible=False), gr.Slider.update(visible=cond), gr.Checkbox.update(visible=(not cond), value=False)
+
+            controller = Controller()
+            main.load(
+                lambda x:x+1,
+                inputs=sketch_pad_trigger,
+                outputs=sketch_pad_trigger,
+                queue=False)
+            sketch_pad.edit(
+                draw,
+                inputs=[task, sketch_pad, grounding_instruction, sketch_pad_resize_trigger, state],
+                outputs=[out_imagebox, sketch_pad_resize_trigger, image_scale, state],
+                queue=False,
             )
-            language_instruction = gr.Textbox(
-                label="Language instruction",
+            grounding_instruction.change(
+                draw,
+                inputs=[task, sketch_pad, grounding_instruction, sketch_pad_resize_trigger, state],
+                outputs=[out_imagebox, sketch_pad_resize_trigger, image_scale, state],
+                queue=False,
             )
-            grounding_instruction = gr.Textbox(
-                label="Grounding instruction (Separated by semicolon)",
+            clear_btn.click(
+                clear,
+                inputs=[task, sketch_pad_trigger, batch_size, state],
+                outputs=[sketch_pad, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
+                queue=False)
+            task.change(
+                partial(clear, switch_task=True),
+                inputs=[task, sketch_pad_trigger, batch_size, state],
+                outputs=[sketch_pad, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
+                queue=False)
+            sketch_pad_trigger.change(
+                controller.init_white,
+                inputs=[init_white_trigger],
+                outputs=[sketch_pad, image_scale, init_white_trigger],
+                queue=False)
+            sketch_pad_resize_trigger.change(
+                controller.resize_masked,
+                inputs=[state],
+                outputs=[sketch_pad, state],
+                queue=False)
+            batch_size.change(
+                controller.change_n_samples,
+                inputs=[batch_size],
+                outputs=[out_gen_1, out_gen_2, out_gen_3, out_gen_4],
+                queue=False)
+            gen_btn.click(
+                generate,
+                inputs=[
+                    task, language_instruction, grounding_instruction, sketch_pad,
+                    alpha_sample, guidance_scale, batch_size,
+                    fix_seed, rand_seed,
+                    use_actual_mask,
+                    append_grounding, style_cond_image,
+                    state,
+                ],
+                outputs=[out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
+                queue=True
             )
-            with gr.Row():
-                sketch_pad = ImageMask(label="Sketch Pad", elem_id="img2img_image")
-                out_imagebox = gr.Image(type="pil", label="Parsed Sketch Pad")
-            with gr.Row():
-                clear_btn = gr.Button(value='Clear')
-                gen_btn = gr.Button(value='Generate', elem_id="generate-btn")
-            with gr.Accordion("Advanced Options", open=False):
-                with gr.Column():
-                    alpha_sample = gr.Slider(minimum=0, maximum=1.0, step=0.1, value=0.3, label="Scheduled Sampling (τ)")
-                    guidance_scale = gr.Slider(minimum=0, maximum=50, step=0.5, value=7.5, label="Guidance Scale")
-                    batch_size = gr.Slider(minimum=1, maximum=4, step=1, value=2, label="Number of Samples")
-                    append_grounding = gr.Checkbox(value=True, label="Append grounding instructions to the caption")
-                    use_actual_mask = gr.Checkbox(value=False, label="Use actual mask for inpainting", visible=False)
-                    with gr.Row():
-                        fix_seed = gr.Checkbox(value=True, label="Fixed seed")
-                        rand_seed = gr.Slider(minimum=0, maximum=1000, step=1, value=0, label="Seed")
-                    with gr.Row():
-                        use_style_cond = gr.Checkbox(value=False, label="Enable Style Condition")
-                        style_cond_image = gr.Image(type="pil", label="Style Condition", visible=False, interactive=True)
-        with gr.Column(scale=4):
-            gr.Markdown("### Generated Images")
-            with gr.Row():
-                out_gen_1 = gr.Image(type="pil", visible=True, show_label=False)
-                out_gen_2 = gr.Image(type="pil", visible=True, show_label=False)
-            with gr.Row():
-                out_gen_3 = gr.Image(type="pil", visible=False, show_label=False)
-                out_gen_4 = gr.Image(type="pil", visible=False, show_label=False)
+            sketch_pad_resize_trigger.change(
+                None,
+                None,
+                sketch_pad_resize_trigger,
+                _js=rescale_js,
+                queue=False)
+            init_white_trigger.change(
+                None,
+                None,
+                init_white_trigger,
+                _js=rescale_js,
+                queue=False)
+            use_style_cond.change(
+                lambda cond: gr.Image.update(visible=cond),
+                use_style_cond,
+                style_cond_image,
+                queue=False)
+            task.change(
+                controller.switch_task_hide_cond,
+                inputs=task,
+                outputs=[use_style_cond, style_cond_image, alpha_sample, use_actual_mask],
+                queue=False)
 
-        state = gr.State({})
-
-        class Controller:
-            def __init__(self):
-                self.calls = 0
-                self.tracks = 0
-                self.resizes = 0
-                self.scales = 0
-
-            def init_white(self, init_white_trigger):
-                self.calls += 1
-                return np.ones((512, 512), dtype='uint8') * 255, 1.0, init_white_trigger+1
-
-            def change_n_samples(self, n_samples):
-                blank_samples = n_samples % 2 if n_samples > 1 else 0
-                return [gr.Image.update(visible=True) for _ in range(n_samples + blank_samples)] \
-                    + [gr.Image.update(visible=False) for _ in range(4 - n_samples - blank_samples)]
-
-            def resize_centercrop(self, state):
-                self.resizes += 1
-                image = state['original_image'].copy()
-                inpaint_hw = int(0.9 * min(*image.shape[:2]))
-                state['inpaint_hw'] = inpaint_hw
-                image_cc = center_crop(image, inpaint_hw)
-                # print(f'resize triggered {self.resizes}', image.shape, '->', image_cc.shape)
-                return image_cc, state
-
-            def resize_masked(self, state):
-                self.resizes += 1
-                image = state['original_image'].copy()
-                inpaint_hw = int(0.9 * min(*image.shape[:2]))
-                state['inpaint_hw'] = inpaint_hw
-                image_mask = sized_center_mask(image, inpaint_hw, inpaint_hw)
-                state['masked_image'] = image_mask.copy()
-                # print(f'mask triggered {self.resizes}')
-                return image_mask, state
-            
-            def switch_task_hide_cond(self, task):
-                cond = False
-                if task == "Grounded Generation":
-                    cond = True
-
-                return gr.Checkbox.update(visible=cond, value=False), gr.Image.update(value=None, visible=False), gr.Slider.update(visible=cond), gr.Checkbox.update(visible=(not cond), value=False)
-
-        controller = Controller()
-        main.load(
-            lambda x:x+1,
-            inputs=sketch_pad_trigger,
-            outputs=sketch_pad_trigger,
-            queue=False)
-        sketch_pad.edit(
-            draw,
-            inputs=[task, sketch_pad, grounding_instruction, sketch_pad_resize_trigger, state],
-            outputs=[out_imagebox, sketch_pad_resize_trigger, image_scale, state],
-            queue=False,
-        )
-        grounding_instruction.change(
-            draw,
-            inputs=[task, sketch_pad, grounding_instruction, sketch_pad_resize_trigger, state],
-            outputs=[out_imagebox, sketch_pad_resize_trigger, image_scale, state],
-            queue=False,
-        )
-        clear_btn.click(
-            clear,
-            inputs=[task, sketch_pad_trigger, batch_size, state],
-            outputs=[sketch_pad, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
-            queue=False)
-        task.change(
-            partial(clear, switch_task=True),
-            inputs=[task, sketch_pad_trigger, batch_size, state],
-            outputs=[sketch_pad, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
-            queue=False)
-        sketch_pad_trigger.change(
-            controller.init_white,
-            inputs=[init_white_trigger],
-            outputs=[sketch_pad, image_scale, init_white_trigger],
-            queue=False)
-        sketch_pad_resize_trigger.change(
-            controller.resize_masked,
-            inputs=[state],
-            outputs=[sketch_pad, state],
-            queue=False)
-        batch_size.change(
-            controller.change_n_samples,
-            inputs=[batch_size],
-            outputs=[out_gen_1, out_gen_2, out_gen_3, out_gen_4],
-            queue=False)
-        gen_btn.click(
-            generate,
-            inputs=[
-                task, language_instruction, grounding_instruction, sketch_pad,
-                alpha_sample, guidance_scale, batch_size,
-                fix_seed, rand_seed,
-                use_actual_mask,
-                append_grounding, style_cond_image,
-                state,
-            ],
-            outputs=[out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
-            queue=True
-        )
-        sketch_pad_resize_trigger.change(
-            None,
-            None,
-            sketch_pad_resize_trigger,
-            _js=rescale_js,
-            queue=False)
-        init_white_trigger.change(
-            None,
-            None,
-            init_white_trigger,
-            _js=rescale_js,
-            queue=False)
-        use_style_cond.change(
-            lambda cond: gr.Image.update(visible=cond),
-            use_style_cond,
-            style_cond_image,
-            queue=False)
-        task.change(
-            controller.switch_task_hide_cond,
-            inputs=task,
-            outputs=[use_style_cond, style_cond_image, alpha_sample, use_actual_mask],
-            queue=False)
-
-    with gr.Column():
-        gr.Examples(
-            examples=[
-                [
-                    "images/blank.png",
-                    "Grounded Generation",
-                    "a dog and an apple",
-                    "a dog;an apple",
+        with gr.Column():
+            gr.Examples(
+                examples=[
+                    [
+                        "images/blank.png",
+                        "Grounded Generation",
+                        "a dog and an apple",
+                        "a dog;an apple",
+                    ],
+                    [
+                        "images/blank.png",
+                        "Grounded Generation",
+                        "John Lennon is using a pc",
+                        "John Lennon;a pc",
+                    [
+                        "images/blank.png",
+                        "Grounded Generation",
+                        "a painting of a fox sitting in a field at sunrise in the style of Claude Mone",
+                        "fox;sunrise",
+                    ],
+                    ],
+                    [
+                        "images/blank.png",
+                        "Grounded Generation",
+                        "a beautiful painting of hot dog by studio ghibli, octane render, brilliantly coloured",
+                        "hot dog",
+                    ],
+                    [
+                        "images/blank.png",
+                        "Grounded Generation",
+                        "a sport car, unreal engine, global illumination, ray tracing",
+                        "a sport car",
+                    ],
+                    [
+                        "images/flower_beach.jpg",
+                        "Grounded Inpainting",
+                        "a squirrel and the space needle",
+                        "a squirrel;the space needle",
+                    ],
+                    [
+                        "images/arg_corgis.jpeg",
+                        "Grounded Inpainting",
+                        "a dog and a birthday cake",
+                        "a dog; a birthday cake",
+                    ],
+                    [
+                        "images/teddy.jpg",
+                        "Grounded Inpainting",
+                        "a teddy bear wearing a santa claus red shirt; holding a Christmas gift box on hand",
+                        "a santa claus shirt; a Christmas gift box",
+                    ],
                 ],
-                [
-                    "images/blank.png",
-                    "Grounded Generation",
-                    "John Lennon is using a pc",
-                    "John Lennon;a pc",
-                [
-                    "images/blank.png",
-                    "Grounded Generation",
-                    "a painting of a fox sitting in a field at sunrise in the style of Claude Mone",
-                    "fox;sunrise",
-                ],
-                ],
-                [
-                    "images/blank.png",
-                    "Grounded Generation",
-                    "a beautiful painting of hot dog by studio ghibli, octane render, brilliantly coloured",
-                    "hot dog",
-                ],
-                [
-                    "images/blank.png",
-                    "Grounded Generation",
-                    "a sport car, unreal engine, global illumination, ray tracing",
-                    "a sport car",
-                ],
-                [
-                    "images/flower_beach.jpg",
-                    "Grounded Inpainting",
-                    "a squirrel and the space needle",
-                    "a squirrel;the space needle",
-                ],
-                [
-                    "images/arg_corgis.jpeg",
-                    "Grounded Inpainting",
-                    "a dog and a birthday cake",
-                    "a dog; a birthday cake",
-                ],
-                [
-                    "images/teddy.jpg",
-                    "Grounded Inpainting",
-                    "a teddy bear wearing a santa claus red shirt; holding a Christmas gift box on hand",
-                    "a santa claus shirt; a Christmas gift box",
-                ],
-            ],
-            inputs=[sketch_pad, task, language_instruction, grounding_instruction],
-            outputs=None,
-            fn=None,
-            cache_examples=False,
-        )
+                inputs=[sketch_pad, task, language_instruction, grounding_instruction],
+                outputs=None,
+                fn=None,
+                cache_examples=False,
+            )
 
-main.queue(concurrency_count=1, api_open=False)
-main.launch(share=False, show_api=False)
+    main.queue(concurrency_count=1, api_open=False)
+    main.launch(share=False, show_api=False)
 
 
