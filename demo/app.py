@@ -257,12 +257,16 @@ def auto_append_grounding(language_instruction, grounding_texts):
 def generate(task, language_instruction, grounding_texts, sketch_pad,
              alpha_sample, guidance_scale, batch_size,
              fix_seed, rand_seed, use_actual_mask, append_grounding, style_cond_image,
-             state):
+             state, inpainting_image=None, inpainting_mask=None):
     if 'boxes' not in state:
         state['boxes'] = []
 
     boxes = state['boxes']
     grounding_texts = [x.strip() for x in grounding_texts.split(';')]
+    print('boxes = ', boxes)
+    print("Length of boxes:", len(boxes))
+    print('grounding_texts = ', grounding_texts)
+    print("Length of grounding_texts:", len(grounding_texts))
     assert len(boxes) == len(grounding_texts)
     boxes = (np.asarray(boxes) / 512).tolist()
     grounding_instruction = json.dumps({obj: box for obj,box in zip(grounding_texts, boxes)})
@@ -270,9 +274,13 @@ def generate(task, language_instruction, grounding_texts, sketch_pad,
     image = None
     actual_mask = None
     if task == 'Grounded Inpainting':
-        image = state.get('original_image', sketch_pad['image']).copy()
-        image = center_crop(image)
-        image = Image.fromarray(image)
+
+        if inpainting_image is None:
+            image = state.get('original_image', sketch_pad['image']).copy()
+            image = center_crop(image)
+            image = Image.fromarray(image)
+        else:
+            image = Image.fromarray(inpainting_image)
 
         if use_actual_mask:
             actual_mask = sketch_pad['mask'].copy()
@@ -280,6 +288,8 @@ def generate(task, language_instruction, grounding_texts, sketch_pad,
                 actual_mask = actual_mask[..., 0]
             actual_mask = center_crop(actual_mask, tgt_size=(64, 64))
             actual_mask = torch.from_numpy(actual_mask == 0).float()
+        else:
+            actual_mask = inpainting_mask
 
         if state.get('inpaint_hw', None):
             boxes = np.asarray(boxes) * 0.9 + 0.05
