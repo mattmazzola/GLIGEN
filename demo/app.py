@@ -34,7 +34,7 @@ def parse_option():
     parser.add_argument("--guidance_scale", type=float,  default=5, help="")
     parser.add_argument("--alpha_scale", type=float,  default=1, help="scale tanh(alpha). If 0, the behaviour is same as original model")
     parser.add_argument("--load-text-box-generation", type=arg_bool, default=True, help="Load text-box generation pipeline.")
-    parser.add_argument("--load-text-box-inpainting", type=arg_bool, default=False, help="Load text-box inpainting pipeline.")
+    parser.add_argument("--load-text-box-inpainting", type=arg_bool, default=True, help="Load text-box inpainting pipeline.")
     parser.add_argument("--load-text-image-box-generation", type=arg_bool, default=False, help="Load text-image-box generation pipeline.")
     args = parser.parse_args()
     return args
@@ -277,19 +277,30 @@ def generate(task, language_instruction, grounding_texts, sketch_pad,
 
         if inpainting_image is None:
             image = state.get('original_image', sketch_pad['image']).copy()
-            image = center_crop(image)
-            image = Image.fromarray(image)
         else:
-            image = Image.fromarray(inpainting_image)
+            if not isinstance(inpainting_image, np.ndarray):
+                image = np.array(inpainting_image)
+            else:
+                image = inpainting_image.copy()
+        image = center_crop(image)
+        image = Image.fromarray(image)
+
 
         if use_actual_mask:
             actual_mask = sketch_pad['mask'].copy()
+            print("shape 1", actual_mask.shape)
             if actual_mask.ndim == 3:
                 actual_mask = actual_mask[..., 0]
+            print("shape 2", actual_mask.shape)
             actual_mask = center_crop(actual_mask, tgt_size=(64, 64))
+            print("shape 3", actual_mask.shape)
             actual_mask = torch.from_numpy(actual_mask == 0).float()
-        else:
-            actual_mask = inpainting_mask
+            print("shape 4", actual_mask.shape)
+        elif inpainting_mask is not None:
+            actual_mask = center_crop(inpainting_mask, tgt_size=(64, 64))
+            print("shape 5", actual_mask.shape)
+            actual_mask = torch.from_numpy(actual_mask == 0).float()
+            print("shape 6", actual_mask.shape)
 
         if state.get('inpaint_hw', None):
             boxes = np.asarray(boxes) * 0.9 + 0.05
