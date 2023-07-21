@@ -257,7 +257,7 @@ def auto_append_grounding(language_instruction, grounding_texts):
 def generate(task, language_instruction, grounding_texts, sketch_pad,
              alpha_sample, guidance_scale, batch_size,
              fix_seed, rand_seed, use_actual_mask, append_grounding, style_cond_image,
-             state, inpainting_image=None, inpainting_mask=None):
+             state, inpainting_image = None, inpainting_mask = None):
     if 'boxes' not in state:
         state['boxes'] = []
 
@@ -316,6 +316,8 @@ def generate(task, language_instruction, grounding_texts, sketch_pad,
         fix_seed, rand_seed, actual_mask, style_cond_image, clip_model=clip_model,
     )
 
+    global generated_images 
+    generated_images = []
     for idx, gen_image in enumerate(gen_images):
 
         if task == 'Grounded Inpainting' and state.get('inpaint_hw', None):
@@ -324,11 +326,14 @@ def generate(task, language_instruction, grounding_texts, sketch_pad,
             gen_image = Image.fromarray(gen_image)
         
         gen_images[idx] = gen_image
+        generated_images.append(gen_image.copy())
 
     blank_samples = batch_size % 2 if batch_size > 1 else 0
     gen_images = [gr.Image.update(value=x, visible=True) for i,x in enumerate(gen_images)] \
                     + [gr.Image.update(value=None, visible=True) for _ in range(blank_samples)] \
                     + [gr.Image.update(value=None, visible=False) for _ in range(4 - batch_size - blank_samples)]
+
+
 
     return gen_images + [state]
 
@@ -539,12 +544,13 @@ function () {
     mirrors_div.innerHTML = mirror_html;
 }
 """
-if __name__ == "__main__":
-    with Blocks(
-        css=css,
-        analytics_enabled=False,
-        title="GLIGen demo",
-    ) as main:
+
+generated_images = None
+
+def UI(inst):
+
+        state = gr.State({})
+
         gr.Markdown('<h1 style="text-align: center;">GLIGen: Open-Set Grounded Text-to-Image Generation</h1>')
         gr.Markdown("""<h3 style="text-align: center" id="paper-info">
         [<a href="https://gligen.github.io" target="_blank" style="">Project Page</a>]
@@ -601,8 +607,6 @@ if __name__ == "__main__":
                     out_gen_3 = gr.Image(type="pil", visible=False, show_label=False)
                     out_gen_4 = gr.Image(type="pil", visible=False, show_label=False)
 
-            state = gr.State({})
-
             class Controller:
                 def __init__(self):
                     self.calls = 0
@@ -646,8 +650,8 @@ if __name__ == "__main__":
                     return gr.Checkbox.update(visible=cond, value=False), gr.Image.update(value=None, visible=False), gr.Slider.update(visible=cond), gr.Checkbox.update(visible=(not cond), value=False)
 
             controller = Controller()
-            main.load(
-                lambda x:x+1,
+            inst.load(
+                lambda x: print("sketch_pad_trigger = ", x) or x+1,
                 inputs=sketch_pad_trigger,
                 outputs=sketch_pad_trigger,
                 queue=False)
@@ -696,7 +700,7 @@ if __name__ == "__main__":
                     fix_seed, rand_seed,
                     use_actual_mask,
                     append_grounding, style_cond_image,
-                    state,
+                    state
                 ],
                 outputs=[out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
                 queue=True
@@ -724,6 +728,7 @@ if __name__ == "__main__":
                 outputs=[use_style_cond, style_cond_image, alpha_sample, use_actual_mask],
                 queue=False)
 
+        """
         with gr.Column():
             gr.Examples(
                 examples=[
@@ -781,7 +786,15 @@ if __name__ == "__main__":
                 fn=None,
                 cache_examples=False,
             )
-
+        """  
+            
+if __name__ == "__main__":
+    with Blocks(
+        css=css,
+        analytics_enabled=False,
+        title="GLIGen demo",
+    ) as main:
+        UI(main)
     main.queue(concurrency_count=1, api_open=False)
     main.launch(share=False, show_api=False)
 
