@@ -472,6 +472,12 @@ def clear(task, sketch_pad_trigger, batch_size, state, switch_task=False):
     state = {}
     return [None, sketch_pad_trigger, None, 1.0] + out_images + [state]
 
+def on_load(sketch_pad_trigger):
+
+    print("on_load(): sketch_pad_trigger = ", sketch_pad_trigger)
+    sketch_pad_trigger += 1
+    return sketch_pad_trigger
+
 css = """
 #generate-btn {
     --tw-border-opacity: 1;
@@ -547,7 +553,7 @@ function () {
 
 generated_images = None
 
-def UI(inst):
+def UI(inst, tab = None):
 
         state = gr.State({})
 
@@ -580,7 +586,7 @@ def UI(inst):
                     label="Grounding instruction (Separated by semicolon)",
                 )
                 with gr.Row():
-                    sketch_pad = ImageMask(label="Sketch Pad", elem_id="img2img_image")
+                    sketch_pad = gr.ImageMask(label="Sketch Pad", elem_id="img2img_image", brush_radius=20.0)
                     out_imagebox = gr.Image(type="pil", label="Parsed Sketch Pad")
                 with gr.Row():
                     clear_btn = gr.Button(value='Clear')
@@ -651,7 +657,7 @@ def UI(inst):
 
             controller = Controller()
             inst.load(
-                lambda x: print("sketch_pad_trigger = ", x) or x+1,
+                on_load, 
                 inputs=sketch_pad_trigger,
                 outputs=sketch_pad_trigger,
                 queue=False)
@@ -727,6 +733,15 @@ def UI(inst):
                 inputs=task,
                 outputs=[use_style_cond, style_cond_image, alpha_sample, use_actual_mask],
                 queue=False)
+        
+        if (tab is not None):
+            tab.select(
+                    clear,
+                    inputs=[task, sketch_pad_trigger, batch_size, state],
+                    outputs=[sketch_pad, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
+                    queue=False)
+
+        return inst, tab
 
         """
         with gr.Column():
@@ -794,7 +809,7 @@ if __name__ == "__main__":
         analytics_enabled=False,
         title="GLIGen demo",
     ) as main:
-        UI(main)
+        main, _ = UI(main)
     main.queue(concurrency_count=1, api_open=False)
     main.launch(share=False, show_api=False)
 
