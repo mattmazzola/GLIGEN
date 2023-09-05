@@ -472,11 +472,12 @@ def clear(task, sketch_pad_trigger, batch_size, state, switch_task=False):
     state = {}
     return [None, sketch_pad_trigger, None, 1.0] + out_images + [state]
 
-def on_load(sketch_pad_trigger):
+def receive_inpainting_image(img, task):
+    if task != 'Grounded Inpainting':
+        task = 'Grounded Inpainting'
+    img_new = img.copy()
+    return img_new, task
 
-    print("on_load(): sketch_pad_trigger = ", sketch_pad_trigger)
-    sketch_pad_trigger += 1
-    return sketch_pad_trigger
 
 css = """
 #generate-btn {
@@ -552,8 +553,8 @@ function () {
 """
 
 generated_images = None
-
-def UI(inst, tab = None):
+sketch_pad_receiver = None
+def UI(inst, tab = None, output_image = None):
 
         state = gr.State({})
 
@@ -576,7 +577,7 @@ def UI(inst, tab = None):
                 task = gr.Radio(
                     choices=["Grounded Generation", 'Grounded Inpainting'],
                     type="value",
-                    value="Grounded Generation",
+                    value="Grounded Inpainting",
                     label="Task",
                 )
                 language_instruction = gr.Textbox(
@@ -587,6 +588,9 @@ def UI(inst, tab = None):
                 )
                 with gr.Row():
                     sketch_pad = gr.ImageMask(label="Sketch Pad", elem_id="img2img_image", brush_radius=20.0)
+                    with gr.Row(visible=False):
+                        global sketch_pad_receiver
+                        sketch_pad_receiver = gr.Image(label="Sketch Receiver", elem_id="sketch_pad_receiver", visible=False)
                     out_imagebox = gr.Image(type="pil", label="Parsed Sketch Pad")
                 with gr.Row():
                     clear_btn = gr.Button(value='Clear')
@@ -607,8 +611,14 @@ def UI(inst, tab = None):
             with gr.Column(scale=4):
                 gr.Markdown("### Generated Images")
                 with gr.Row():
-                    out_gen_1 = gr.Image(type="pil", visible=True, show_label=False)
-                    out_gen_2 = gr.Image(type="pil", visible=True, show_label=False)
+                    with gr.Column():
+                        out_gen_1 = gr.Image(type="pil", visible=True, show_label=False)
+                        out_gen_1_btn = gr.Button("Use This Image", elem_id="gligen-btn")
+
+                    with gr.Column():
+                        out_gen_2 = gr.Image(type="pil", visible=True, show_label=False)
+                        out_gen_2_btn = gr.Button("Use This Image", elem_id="gligen-btn")
+
                 with gr.Row():
                     out_gen_3 = gr.Image(type="pil", visible=False, show_label=False)
                     out_gen_4 = gr.Image(type="pil", visible=False, show_label=False)
@@ -657,9 +667,9 @@ def UI(inst, tab = None):
 
             controller = Controller()
             inst.load(
-                on_load, 
-                inputs=sketch_pad_trigger,
-                outputs=sketch_pad_trigger,
+                clear, 
+                inputs=[task, sketch_pad_trigger, batch_size, state],
+                outputs=[sketch_pad, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
                 queue=False)
             sketch_pad.edit(
                 draw,
@@ -667,6 +677,7 @@ def UI(inst, tab = None):
                 outputs=[out_imagebox, sketch_pad_resize_trigger, image_scale, state],
                 queue=False,
             )
+            sketch_pad_receiver.change(receive_inpainting_image, [sketch_pad_receiver, task], [sketch_pad, task])
             grounding_instruction.change(
                 draw,
                 inputs=[task, sketch_pad, grounding_instruction, sketch_pad_resize_trigger, state],
@@ -733,13 +744,16 @@ def UI(inst, tab = None):
                 inputs=task,
                 outputs=[use_style_cond, style_cond_image, alpha_sample, use_actual_mask],
                 queue=False)
-        
-        if (tab is not None):
-            tab.select(
-                    clear,
-                    inputs=[task, sketch_pad_trigger, batch_size, state],
-                    outputs=[sketch_pad, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
-                    queue=False)
+
+            out_gen_1_btn.click(lambda x: x, [out_gen_1], [output_image])
+            out_gen_2_btn.click(lambda x: x, [out_gen_2], [output_image])                    
+
+        #if (tab is not None):
+        #    tab.select(
+        #            clear,
+        #            inputs=[task, sketch_pad_trigger, batch_size, state],
+        #            outputs=[sketch_pad, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
+        #            queue=False)
 
         return inst, tab
 
