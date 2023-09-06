@@ -470,14 +470,16 @@ def clear(task, sketch_pad_trigger, batch_size, state, switch_task=False):
                     + [gr.Image.update(value=None, visible=True) for _ in range(blank_samples)] \
                     + [gr.Image.update(value=None, visible=False) for _ in range(4 - batch_size - blank_samples)]
     state = {}
-    return [None, sketch_pad_trigger, None, 1.0] + out_images + [state]
+    return [None, None, sketch_pad_trigger, None, 1.0] + out_images + [state]
 
 def receive_inpainting_image(img, task):
-    if task != 'Grounded Inpainting':
-        task = 'Grounded Inpainting'
-    img_new = img.copy()
-    return img_new, task
-
+#    if task != 'Grounded Inpainting':
+#        task = 'Grounded Inpainting'
+    if (img is not None):
+        img_new = img.copy()
+        return gr.Image.update(value=img_new, visible=True), task
+    else:
+        return None, task
 
 css = """
 #generate-btn {
@@ -558,12 +560,13 @@ def UI(inst, tab = None, output_image = None):
 
         state = gr.State({})
 
+        gr.Markdown('<h1 style="text-align: center;"></h1>')
         gr.Markdown('<h1 style="text-align: center;">GLIGen: Open-Set Grounded Text-to-Image Generation</h1>')
-        gr.Markdown("""<h3 style="text-align: center" id="paper-info">
-        [<a href="https://gligen.github.io" target="_blank" style="">Project Page</a>]
-        [<a href="https://arxiv.org/abs/2301.07093" target="_blank" style="">Paper</a>]
-        [<a href="https://github.com/gligen/GLIGEN" target="_blank" style="">GitHub Repo</a>]
-        </h3>""")
+        # gr.Markdown("""<h3 style="text-align: center" id="paper-info">
+        # [<a href="https://gligen.github.io" target="_blank" style="">Project Page</a>]
+        # [<a href="https://arxiv.org/abs/2301.07093" target="_blank" style="">Paper</a>]
+        # [<a href="https://github.com/gligen/GLIGEN" target="_blank" style="">GitHub Repo</a>]
+        # </h3>""")
         # gr.HTML("", elem_id="mirrors")
         gr.Markdown("To ground concepts of interest with desired spatial specification, please (1) &#9000;&#65039; enter the concept names in <em> Grounding Instruction</em>, and (2) &#128433;&#65039; draw their corresponding bounding boxes one by one using <em> Sketch Pad</em> -- the parsed boxes will be displayed automatically.")
         with gr.Row():
@@ -669,7 +672,7 @@ def UI(inst, tab = None, output_image = None):
             inst.load(
                 clear, 
                 inputs=[task, sketch_pad_trigger, batch_size, state],
-                outputs=[sketch_pad, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
+                outputs=[sketch_pad, sketch_pad_receiver, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
                 queue=False)
             sketch_pad.edit(
                 draw,
@@ -687,12 +690,12 @@ def UI(inst, tab = None, output_image = None):
             clear_btn.click(
                 clear,
                 inputs=[task, sketch_pad_trigger, batch_size, state],
-                outputs=[sketch_pad, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
+                outputs=[sketch_pad, sketch_pad_receiver, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
                 queue=False)
             task.change(
                 partial(clear, switch_task=True),
                 inputs=[task, sketch_pad_trigger, batch_size, state],
-                outputs=[sketch_pad, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
+                outputs=[sketch_pad, sketch_pad_receiver, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
                 queue=False)
             sketch_pad_trigger.change(
                 controller.init_white,
