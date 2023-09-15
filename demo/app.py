@@ -472,14 +472,11 @@ def clear(task, sketch_pad_trigger, batch_size, state, switch_task=False):
     state = {}
     return [None, None, sketch_pad_trigger, None, 1.0] + out_images + [state]
 
-def receive_inpainting_image(img, task):
-#    if task != 'Grounded Inpainting':
-#        task = 'Grounded Inpainting'
+def receive_inpainting_image(img):
     if (img is not None):
-        img_new = img.copy()
-        return gr.Image.update(value=img_new, visible=True), task
+        return gr.ImageMask.update(value=img, visible=True)
     else:
-        return None, task
+        return None
 
 css = """
 #generate-btn {
@@ -680,7 +677,10 @@ def UI(inst, tab = None, output_image = None):
                 outputs=[out_imagebox, sketch_pad_resize_trigger, image_scale, state],
                 queue=False,
             )
-            sketch_pad_receiver.change(receive_inpainting_image, [sketch_pad_receiver, task], [sketch_pad, task])
+            sketch_pad_receiver.change(clear, 
+                                        inputs=[task, sketch_pad_trigger, batch_size, state],
+                                        outputs=[sketch_pad, sketch_pad, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
+                                        queue=False).then(receive_inpainting_image, [sketch_pad_receiver], [sketch_pad])
             grounding_instruction.change(
                 draw,
                 inputs=[task, sketch_pad, grounding_instruction, sketch_pad_resize_trigger, state],
