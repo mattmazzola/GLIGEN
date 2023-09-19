@@ -586,11 +586,11 @@ def UI(inst, tab = None, output_image = None):
                 grounding_instruction = gr.Textbox(
                     label="Grounding instruction (Separated by semicolon)",
                 )
+                with gr.Row(visible=False):
+                    global sketch_pad_receiver
+                    sketch_pad_receiver = gr.Image(label="Sketch Receiver", elem_id="sketch_pad_receiver", visible=False)
                 with gr.Row():
-                    sketch_pad = gr.ImageMask(label="Sketch Pad", elem_id="img2img_image", brush_radius=20.0)
-                    with gr.Row(visible=False):
-                        global sketch_pad_receiver
-                        sketch_pad_receiver = gr.Image(label="Sketch Receiver", elem_id="sketch_pad_receiver", visible=False)
+                    sketch_pad = gr.ImageMask(label="Sketch Pad", elem_id="img2img_image", brush_radius=20.0, height=256)     #without height, sometimes the height can become 0 (invisible)
                     out_imagebox = gr.Image(type="pil", label="Parsed Sketch Pad")
                 with gr.Row():
                     clear_btn = gr.Button(value='Clear')
