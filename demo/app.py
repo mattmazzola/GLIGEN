@@ -262,7 +262,8 @@ def generate(task, language_instruction, grounding_texts, sketch_pad,
         state['boxes'] = []
 
     boxes = state['boxes']
-    grounding_texts = [x.strip() for x in grounding_texts.split(';')]
+    if (len(grounding_texts) != 0):
+        grounding_texts = [x.strip() for x in grounding_texts.split(';')]
     print('boxes = ', boxes)
     print("Length of boxes:", len(boxes))
     print('grounding_texts = ', grounding_texts)
@@ -478,6 +479,10 @@ def receive_inpainting_image(img):
     else:
         return None
 
+def change_task_to_grounded_inpainting(task):
+    task = "Grounded Inpainting"
+    return task
+
 css = """
 #generate-btn {
     --tw-border-opacity: 1;
@@ -550,7 +555,48 @@ function () {
     mirrors_div.innerHTML = mirror_html;
 }
 """
+class Controller:
+    def __init__(self):
+        self.calls = 0
+        self.tracks = 0
+        self.resizes = 0
+        self.scales = 0
 
+    def init_white(self, init_white_trigger):
+        self.calls += 1
+        return np.ones((512, 512), dtype='uint8') * 255, 1.0, init_white_trigger+1
+
+    def change_n_samples(self, n_samples):
+        blank_samples = n_samples % 2 if n_samples > 1 else 0
+        return [gr.Image.update(visible=True) for _ in range(n_samples + blank_samples)] \
+            + [gr.Image.update(visible=False) for _ in range(4 - n_samples - blank_samples)]
+
+    def resize_centercrop(self, state):
+        self.resizes += 1
+        image = state['original_image'].copy()
+        inpaint_hw = int(0.9 * min(*image.shape[:2]))
+        state['inpaint_hw'] = inpaint_hw
+        image_cc = center_crop(image, inpaint_hw)
+        # print(f'resize triggered {self.resizes}', image.shape, '->', image_cc.shape)
+        return image_cc, state
+
+    def resize_masked(self, state):
+        self.resizes += 1
+        image = state['original_image'].copy()
+        inpaint_hw = int(0.9 * min(*image.shape[:2]))
+        state['inpaint_hw'] = inpaint_hw
+        image_mask = sized_center_mask(image, inpaint_hw, inpaint_hw)
+        state['masked_image'] = image_mask.copy()
+        # print(f'mask triggered {self.resizes}')
+        return image_mask, state
+    
+    def switch_task_hide_cond(self, task):
+        cond = False
+        if task == "Grounded Generation":
+            cond = True
+
+        return gr.Checkbox.update(visible=cond, value=False), gr.Image.update(value=None, visible=False), gr.Slider.update(visible=cond), gr.Checkbox.update(visible=(not cond), value=False)
+                    
 generated_images = None
 sketch_pad_receiver = None
 def UI(inst, tab = None, output_image = None):
@@ -577,7 +623,7 @@ def UI(inst, tab = None, output_image = None):
                 task = gr.Radio(
                     choices=["Grounded Generation", 'Grounded Inpainting'],
                     type="value",
-                    value="Grounded Inpainting",
+                    value="Grounded Generation",
                     label="Task",
                 )
                 language_instruction = gr.Textbox(
@@ -590,7 +636,7 @@ def UI(inst, tab = None, output_image = None):
                     global sketch_pad_receiver
                     sketch_pad_receiver = gr.Image(label="Sketch Receiver", elem_id="sketch_pad_receiver", visible=False)
                 with gr.Row():
-                    sketch_pad = gr.ImageMask(label="Sketch Pad", elem_id="img2img_image", brush_radius=20.0, height=256)     #without height, sometimes the height can become 0 (invisible)
+                    sketch_pad = gr.ImageMask(label="Sketch Pad", elem_id="img2img_image", brush_radius=20.0, height=256, visible=True, interactive=True)     #without height, sometimes the height can become 0 (invisible)
                     out_imagebox = gr.Image(type="pil", label="Parsed Sketch Pad")
                 with gr.Row():
                     clear_btn = gr.Button(value='Clear')
@@ -680,7 +726,7 @@ def UI(inst, tab = None, output_image = None):
             sketch_pad_receiver.change(clear, 
                                         inputs=[task, sketch_pad_trigger, batch_size, state],
                                         outputs=[sketch_pad, sketch_pad, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
-                                        queue=False).then(receive_inpainting_image, [sketch_pad_receiver], [sketch_pad])
+                                        queue=False).then(change_task_to_grounded_inpainting, [task], [task]).then(receive_inpainting_image, [sketch_pad_receiver], [sketch_pad])
             grounding_instruction.change(
                 draw,
                 inputs=[task, sketch_pad, grounding_instruction, sketch_pad_resize_trigger, state],
