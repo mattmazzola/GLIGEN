@@ -258,6 +258,13 @@ def generate(task, language_instruction, grounding_texts, sketch_pad,
              alpha_sample, guidance_scale, batch_size,
              fix_seed, rand_seed, use_actual_mask, append_grounding, style_cond_image,
              state, inpainting_image = None, inpainting_mask = None):
+    
+    if isinstance(sketch_pad, dict):
+        if isinstance(sketch_pad['image'], np.ndarray):
+            sketch_pad['image'] = Image.fromarray(sketch_pad['image'])
+        if isinstance(sketch_pad['mask'], np.ndarray):
+            sketch_pad['mask'] = Image.fromarray(sketch_pad['mask'])
+
     if 'boxes' not in state:
         state['boxes'] = []
 
