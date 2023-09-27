@@ -271,6 +271,8 @@ def generate(task, language_instruction, grounding_texts, sketch_pad,
     boxes = state['boxes']
     if (len(grounding_texts) != 0):
         grounding_texts = [x.strip() for x in grounding_texts.split(';')]
+    if (len(boxes) == 0): #the user didn't draw anything ignore grounding text
+        grounding_texts = []
     print('boxes = ', boxes)
     print("Length of boxes:", len(boxes))
     print('grounding_texts = ', grounding_texts)
@@ -381,6 +383,12 @@ def center_crop(img, HW=None, tgt_size=(512, 512)):
     return np.array(img)
 
 def draw(task, input, grounding_texts, new_image_trigger, state):
+
+    image_scale = 1.0
+
+    if (input is None):  #clearing grounding_text can trigger. makes it no op
+        return [None, new_image_trigger, image_scale, state]
+
     if type(input) == dict:
         image = input['image']
         mask = input['mask']
@@ -389,8 +397,6 @@ def draw(task, input, grounding_texts, new_image_trigger, state):
 
     if mask.ndim == 3:
         mask = mask[..., 0]
-
-    image_scale = 1.0
 
     # resize trigger
     if task == "Grounded Inpainting":
@@ -455,7 +461,8 @@ def draw(task, input, grounding_texts, new_image_trigger, state):
             state['masks'].append(mask.copy())
             state['boxes'].append((x1, y1, x2, y2))
 
-    grounding_texts = [x.strip() for x in grounding_texts.split(';')]
+    if (len(grounding_texts) > 0):
+        grounding_texts = [x.strip() for x in grounding_texts.split(';')]
     grounding_texts = [x for x in grounding_texts if len(x) > 0]
     if len(grounding_texts) < len(state['boxes']):
         grounding_texts += [f'Obj. {bid+1}' for bid in range(len(grounding_texts), len(state['boxes']))]
