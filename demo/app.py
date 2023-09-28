@@ -494,7 +494,7 @@ def clear(task, sketch_pad_trigger, batch_size, state, switch_task=False):
                     + [gr.Image.update(value=None, visible=True) for _ in range(blank_samples)] \
                     + [gr.Image.update(value=None, visible=False) for _ in range(4 - batch_size - blank_samples)]
     state = {}
-    return [None, None, sketch_pad_trigger, None, 1.0] + out_images + [state]
+    return [None, sketch_pad_trigger, None, 1.0] + out_images + [state]
 
 def receive_inpainting_image(img):
     if (img is not None):
@@ -539,7 +539,8 @@ function(x) {
     const root = document.querySelector('gradio-app').shadowRoot || document.querySelector('gradio-app');
     let image_scale = parseFloat(root.querySelector('#image_scale input').value) || 1.0;
     const image_width = root.querySelector('#img2img_image').clientWidth;
-    const target_height = parseInt(image_width); // * image_scale);
+//    const target_height = parseInt(image_width * image_scale);
+    const target_height = parseInt(image_width * 0.5);
     document.body.style.setProperty('--height', `${target_height}px`);
     root.querySelectorAll('button.justify-center.rounded')[0].style.display='none';
     root.querySelectorAll('button.justify-center.rounded')[1].style.display='none';
@@ -621,7 +622,6 @@ class Controller:
         return gr.Checkbox.update(visible=cond, value=False), gr.Image.update(value=None, visible=False), gr.Slider.update(visible=cond), gr.Checkbox.update(visible=(not cond), value=False)
                     
 generated_images = None
-sketch_pad_receiver = None
 def UI(inst, tab = None, output_image = None):
 
         state = gr.State({})
@@ -655,9 +655,6 @@ def UI(inst, tab = None, output_image = None):
                 grounding_instruction = gr.Textbox(
                     label="Grounding instruction (Separated by semicolon)",
                 )
-                with gr.Row(visible=False):
-                    global sketch_pad_receiver
-                    sketch_pad_receiver = gr.Image(label="Sketch Receiver", elem_id="sketch_pad_receiver", visible=False)
                 with gr.Row():
                     sketch_pad = gr.ImageMask(label="Sketch Pad", elem_id="img2img_image", brush_radius=20.0, height=256, visible=True, interactive=True)     #without height, sometimes the height can become 0 (invisible)
                     out_imagebox = gr.Image(type="pil", label="Parsed Sketch Pad")
@@ -738,7 +735,7 @@ def UI(inst, tab = None, output_image = None):
             inst.load(
                 clear, 
                 inputs=[task, sketch_pad_trigger, batch_size, state],
-                outputs=[sketch_pad, sketch_pad_receiver, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
+                outputs=[sketch_pad, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
                 queue=False)
             sketch_pad.edit(
                 draw,
@@ -746,10 +743,6 @@ def UI(inst, tab = None, output_image = None):
                 outputs=[out_imagebox, sketch_pad_resize_trigger, image_scale, state],
                 queue=False,
             )
-            sketch_pad_receiver.change(clear, 
-                                        inputs=[task, sketch_pad_trigger, batch_size, state],
-                                        outputs=[sketch_pad, sketch_pad, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
-                                        queue=False).then(change_task_to_grounded_inpainting, [task], [task]).then(receive_inpainting_image, [sketch_pad_receiver], [sketch_pad])
             grounding_instruction.change(
                 draw,
                 inputs=[task, sketch_pad, grounding_instruction, sketch_pad_resize_trigger, state],
@@ -759,12 +752,12 @@ def UI(inst, tab = None, output_image = None):
             clear_btn.click(
                 clear,
                 inputs=[task, sketch_pad_trigger, batch_size, state],
-                outputs=[sketch_pad, sketch_pad_receiver, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
+                outputs=[sketch_pad, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
                 queue=False)
             task.change(
                 partial(clear, switch_task=True),
                 inputs=[task, sketch_pad_trigger, batch_size, state],
-                outputs=[sketch_pad, sketch_pad_receiver, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
+                outputs=[sketch_pad, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
                 queue=False)
             sketch_pad_trigger.change(
                 controller.init_white,
