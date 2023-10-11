@@ -270,16 +270,18 @@ def generate(task, language_instruction, grounding_texts, sketch_pad,
 
     boxes = state['boxes']
     if (len(grounding_texts) != 0):
-        grounding_texts = [x.strip() for x in grounding_texts.split(';')]
-    if (len(boxes) == 0): #the user didn't draw anything to match grounding text
-        raise gr.Error("There is no bounding box to match the given grounding instruction. Hit clear to start over.")
-        grounding_texts = []
+        grounding_texts = [x.strip() for x in grounding_texts.split(';')]        
     print('boxes = ', boxes)
     print("Length of boxes:", len(boxes))
     print('grounding_texts = ', grounding_texts)
     print("Length of grounding_texts:", len(grounding_texts))
     if (len(boxes) != len(grounding_texts)):
         raise gr.Error("There is a mismatching between bounding boxes and the given grounding instruction. Hit clear to start over.")
+    if (task == 'Grounded Inpainting' and len(grounding_texts) == 0):
+        raise gr.Error("There is nothing to inpaint. Please give grounding instructions and draw the bounding box. Hit clear to start over.")
+    if (task == 'Grounded Generation' and len(language_instruction) == 0):
+        raise gr.Error("There is nothing to generate. Please give language instructions. Hit clear to start over.")
+        
     boxes = (np.asarray(boxes) / 512).tolist()
     grounding_instruction = json.dumps({obj: box for obj,box in zip(grounding_texts, boxes)})
 
