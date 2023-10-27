@@ -300,7 +300,7 @@ def generate(task, language_instruction, grounding_texts, sketch_pad,
         image = Image.fromarray(image)
 
 
-        if use_actual_mask:
+        if use_actual_mask and inpainting_mask is None:
             actual_mask = sketch_pad['mask'].copy()
             print("shape 1", actual_mask.shape)
             if actual_mask.ndim == 3:
@@ -311,6 +311,8 @@ def generate(task, language_instruction, grounding_texts, sketch_pad,
             actual_mask = torch.from_numpy(actual_mask == 0).float()
             print("shape 4", actual_mask.shape)
         elif inpainting_mask is not None:
+            if not isinstance(inpainting_mask, np.ndarray):
+                inpainting_mask = np.array(inpainting_mask)
             actual_mask = center_crop(inpainting_mask, tgt_size=(64, 64))
             print("shape 5", actual_mask.shape)
             actual_mask = torch.from_numpy(actual_mask == 0).float()
