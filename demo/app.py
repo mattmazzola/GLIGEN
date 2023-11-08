@@ -36,8 +36,10 @@ def parse_option():
     parser.add_argument("--load-text-box-generation", type=arg_bool, default=True, help="Load text-box generation pipeline.")
     parser.add_argument("--load-text-box-inpainting", type=arg_bool, default=True, help="Load text-box inpainting pipeline.")
     parser.add_argument("--load-text-image-box-generation", type=arg_bool, default=False, help="Load text-image-box generation pipeline.")
-    args = parser.parse_args()
+    args, unknown_args = parser.parse_known_args()
     return args
+
+
 args = parse_option()
 
 
@@ -57,14 +59,14 @@ if args.load_text_box_generation:
     config.update( vars(args) )
     config.model['params']['is_inpaint'] = False
     config.model['params']['is_style'] = False
-    loaded_model_list = load_ckpt(config, pretrained_ckpt_gligen) 
+    loaded_model_list = load_ckpt(config, pretrained_ckpt_gligen)
 
 
 if args.load_text_box_inpainting:
     pretrained_ckpt_gligen_inpaint, config = load_ckpt_config_from_hf('gligen-inpainting-text-box')
     config = OmegaConf.create( config["_content"] ) # config used in training
     config.update( vars(args) )
-    config.model['params']['is_inpaint'] = True 
+    config.model['params']['is_inpaint'] = True
     config.model['params']['is_style'] = False
     loaded_model_list_inpaint = load_ckpt(config, pretrained_ckpt_gligen_inpaint)
 
@@ -73,7 +75,7 @@ if args.load_text_image_box_generation:
     pretrained_ckpt_gligen_style, config = load_ckpt_config_from_hf('gligen-generation-text-image-box')
     config = OmegaConf.create( config["_content"] ) # config used in training
     config.update( vars(args) )
-    config.model['params']['is_inpaint'] = False 
+    config.model['params']['is_inpaint'] = False
     config.model['params']['is_style'] = True
     loaded_model_list_style = load_ckpt(config, pretrained_ckpt_gligen_style)
 
@@ -141,7 +143,7 @@ class Blocks(gr.Blocks):
 
         for k, v in self.extra_configs.items():
             config[k] = v
-        
+
         return config
 
 '''
@@ -160,7 +162,7 @@ def inference(task, language_instruction, grounding_instruction, inpainting_boxe
         phrase_list.append(k)
         location_list.append(v)
 
-    placeholder_image = Image.open(os.path.join(current_dir, 'images/teddy.jpg')).convert("RGB")    
+    placeholder_image = Image.open(os.path.join(current_dir, 'images/teddy.jpg')).convert("RGB")
     image_list = [placeholder_image] * len(phrase_list) # placeholder input for visual prompt, which is disabled
 
     batch_size = int(batch_size)
@@ -168,8 +170,8 @@ def inference(task, language_instruction, grounding_instruction, inpainting_boxe
         batch_size = 2
 
     if style_image == None:
-        has_text_mask = 1 
-        has_image_mask = 0 # then we hack above 'image_list' 
+        has_text_mask = 1
+        has_image_mask = 0 # then we hack above 'image_list'
     else:
         valid_phrase_len = len(phrase_list)
 
@@ -178,7 +180,7 @@ def inference(task, language_instruction, grounding_instruction, inpainting_boxe
 
         image_list = [placeholder_image]*valid_phrase_len + [style_image]
         has_image_mask = [0]*valid_phrase_len + [1]
-        
+
         location_list += [ [0.0, 0.0, 1, 0.01]  ] # style image grounding location
 
     if task == 'Grounded Inpainting':
@@ -189,7 +191,7 @@ def inference(task, language_instruction, grounding_instruction, inpainting_boxe
         phrases = phrase_list,
         images = image_list,
         locations = location_list,
-        alpha_type = [alpha_sample, 0, 1.0 - alpha_sample], 
+        alpha_type = [alpha_sample, 0, 1.0 - alpha_sample],
         has_text_mask = has_text_mask,
         has_image_mask = has_image_mask,
         save_folder_name = language_instruction,
@@ -258,7 +260,7 @@ def generate(task, language_instruction, grounding_texts, sketch_pad,
              alpha_sample, guidance_scale, batch_size,
              fix_seed, rand_seed, use_actual_mask, append_grounding, style_cond_image,
              state, inpainting_image = None, inpainting_mask = None):
-    
+
     if isinstance(sketch_pad, dict):
         if isinstance(sketch_pad['image'], np.ndarray):
             sketch_pad['image'] = Image.fromarray(sketch_pad['image'])
@@ -270,7 +272,7 @@ def generate(task, language_instruction, grounding_texts, sketch_pad,
 
     boxes = state['boxes']
     if (len(grounding_texts) != 0):
-        grounding_texts = [x.strip() for x in grounding_texts.split(';')]        
+        grounding_texts = [x.strip() for x in grounding_texts.split(';')]
     print('boxes = ', boxes)
     print("Length of boxes:", len(boxes))
     print('grounding_texts = ', grounding_texts)
@@ -281,7 +283,7 @@ def generate(task, language_instruction, grounding_texts, sketch_pad,
         raise gr.Error("There is nothing to inpaint. Please give grounding instructions and draw the bounding box. Hit clear to start over.")
     if (task == 'Grounded Generation' and len(language_instruction) == 0):
         raise gr.Error("There is nothing to generate. Please give language instructions. Hit clear to start over.")
-        
+
     boxes = (np.asarray(boxes) / 512).tolist()
     grounding_instruction = json.dumps({obj: box for obj,box in zip(grounding_texts, boxes)})
 
@@ -322,7 +324,7 @@ def generate(task, language_instruction, grounding_texts, sketch_pad,
             boxes = np.asarray(boxes) * 0.9 + 0.05
             boxes = boxes.tolist()
             grounding_instruction = json.dumps({obj: box for obj,box in zip(grounding_texts, boxes) if obj != 'auto'})
-    
+
     if append_grounding:
         language_instruction = auto_append_grounding(language_instruction, grounding_texts)
 
@@ -332,7 +334,7 @@ def generate(task, language_instruction, grounding_texts, sketch_pad,
         fix_seed, rand_seed, actual_mask, style_cond_image, clip_model=clip_model,
     )
 
-    global generated_images 
+    global generated_images
     generated_images = []
     for idx, gen_image in enumerate(gen_images):
 
@@ -340,7 +342,7 @@ def generate(task, language_instruction, grounding_texts, sketch_pad,
             hw = min(*state['original_image'].shape[:2])
             gen_image = sized_center_fill(state['original_image'].copy(), np.array(gen_image.resize((hw, hw))), hw, hw)
             gen_image = Image.fromarray(gen_image)
-        
+
         gen_images[idx] = gen_image
         generated_images.append(gen_image.copy())
 
@@ -363,20 +365,20 @@ def binarize(x):
 def sized_center_crop(img, cropx, cropy):
     y, x = img.shape[:2]
     startx = x // 2 - (cropx // 2)
-    starty = y // 2 - (cropy // 2)    
+    starty = y // 2 - (cropy // 2)
     return img[starty:starty+cropy, startx:startx+cropx]
 
 def sized_center_fill(img, fill, cropx, cropy):
     y, x = img.shape[:2]
     startx = x // 2 - (cropx // 2)
-    starty = y // 2 - (cropy // 2)    
+    starty = y // 2 - (cropy // 2)
     img[starty:starty+cropy, startx:startx+cropx] = fill
     return img
 
 def sized_center_mask(img, cropx, cropy):
     y, x = img.shape[:2]
     startx = x // 2 - (cropx // 2)
-    starty = y // 2 - (cropy // 2)    
+    starty = y // 2 - (cropy // 2)
     center_region = img[starty:starty+cropy, startx:startx+cropx].copy()
     #img = (img * 0.2).astype('uint8')
     img = (img * 0.999).astype('uint8')
@@ -402,7 +404,7 @@ def draw(task, input, grounding_texts, new_image_trigger, state):
 
         if (input is None):  #clearing grounding_text can trigger. makes it no op
             return [None, new_image_trigger, image_scale, state]
-        
+
         if type(input) == dict:
             image = input['image']
             mask = input['mask']
@@ -616,14 +618,14 @@ class Controller:
         state['masked_image'] = image_mask.copy()
         # print(f'mask triggered {self.resizes}')
         return image_mask, state
-    
+
     def switch_task_hide_cond(self, task):
         cond = False
         if task == "Grounded Generation":
             cond = True
 
         return gr.Checkbox.update(visible=cond, value=False), gr.Image.update(value=None, visible=False), gr.Slider.update(visible=cond), gr.Checkbox.update(visible=(not cond), value=False)
-                    
+
 generated_images = None
 def UI(inst, tab = None, output_image = None):
 
@@ -726,7 +728,7 @@ def UI(inst, tab = None, output_image = None):
                     state['masked_image'] = image_mask.copy()
                     # print(f'mask triggered {self.resizes}')
                     return image_mask, state
-                
+
                 def switch_task_hide_cond(self, task):
                     cond = False
                     if task == "Grounded Generation":
@@ -736,7 +738,7 @@ def UI(inst, tab = None, output_image = None):
 
             controller = Controller()
             inst.load(
-                clear, 
+                clear,
                 inputs=[task, sketch_pad_trigger, batch_size, state],
                 outputs=[sketch_pad, sketch_pad_trigger, out_imagebox, image_scale, out_gen_1, out_gen_2, out_gen_3, out_gen_4, state],
                 queue=False)
@@ -814,7 +816,7 @@ def UI(inst, tab = None, output_image = None):
                 queue=False)
 
             out_gen_1_btn.click(lambda x: x, [out_gen_1], [output_image])
-            out_gen_2_btn.click(lambda x: x, [out_gen_2], [output_image])                    
+            out_gen_2_btn.click(lambda x: x, [out_gen_2], [output_image])
 
         #if (tab is not None):
         #    tab.select(
@@ -883,8 +885,8 @@ def UI(inst, tab = None, output_image = None):
                 fn=None,
                 cache_examples=False,
             )
-        """  
-            
+        """
+
 if __name__ == "__main__":
     with Blocks(
         css=css,
